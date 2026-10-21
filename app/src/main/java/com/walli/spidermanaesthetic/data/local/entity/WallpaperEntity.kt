@@ -14,7 +14,9 @@ data class WallpaperEntity(
     val downloads: Int,
     val createdAt: String,
     val isPremium: Boolean,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val videoUrl: String? = null,
+    val wallpaperType: String? = null,
 ) {
     fun toDomain() = Wallpaper(
         id = id,
@@ -26,6 +28,8 @@ data class WallpaperEntity(
         createdAt = createdAt,
         isPremium = isPremium,
         isFavorite = false,
+        videoUrl = videoUrl,
+        wallpaperType = wallpaperType,
     )
 
     companion object {
@@ -38,7 +42,9 @@ data class WallpaperEntity(
             downloads = wallpaper.downloads,
             createdAt = wallpaper.createdAt,
             isPremium = wallpaper.isPremium,
-            sortOrder = index
+            sortOrder = index,
+            videoUrl = wallpaper.videoUrl,
+            wallpaperType = wallpaper.wallpaperType,
         )
     }
 }

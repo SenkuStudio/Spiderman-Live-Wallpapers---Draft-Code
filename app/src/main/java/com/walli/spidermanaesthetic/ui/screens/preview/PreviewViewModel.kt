@@ -92,6 +92,7 @@ class PreviewViewModel @Inject constructor(
                 wallpaperPreferences.editToolsUnlockTime,
                 wallpaperPreferences.premiumPassUnlockTime
             ) { session, favorites, unlocks, editUnlockTime, premiumPassTime ->
+                android.util.Log.d("PreviewViewModel", "Flow emission: session items=${session.items.size}, favorites=${favorites.size}, unlocks=${unlocks.size}")
                 val isEditUnlocked = System.currentTimeMillis() - editUnlockTime < 24 * 60 * 60 * 1000
                 val isPremiumPassActive = System.currentTimeMillis() - premiumPassTime < 24 * 60 * 60 * 1000
                 Quintuple(session, favorites, unlocks, isEditUnlocked, isPremiumPassActive)
@@ -275,8 +276,9 @@ class PreviewViewModel @Inject constructor(
             viewModelScope.launch {
                 setWorking(label = "Downloading…")
                 wallpaperDownloader.download(
-                    url = item.imageUrl,
+                    url = item.contentUrl,
                     title = item.title,
+                    isLive = item.isLive,
                     scale = transformation.scale,
                     offsetX = transformation.offset.x,
                     offsetY = transformation.offset.y,
@@ -389,7 +391,7 @@ class PreviewViewModel @Inject constructor(
             viewModelScope.launch {
                 setWorking(label = "Applying wallpaper…")
                 wallpaperApplier.apply(
-                    url = item.imageUrl,
+                    url = item.contentUrl,
                     target = target,
                     scale = transformation.scale,
                     offsetX = transformation.offset.x,
@@ -422,7 +424,7 @@ class PreviewViewModel @Inject constructor(
             viewModelScope.launch {
                 setWorking(label = "Preparing share…")
                 shareManager.share(
-                    url = item.imageUrl,
+                    url = item.contentUrl,
                     title = item.title,
                     scale = transformation.scale,
                     offsetX = transformation.offset.x,

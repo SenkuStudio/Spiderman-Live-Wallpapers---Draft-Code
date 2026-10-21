@@ -31,6 +31,7 @@ class SettingsManager @Inject constructor(
     private val autoWallpaperCategoryIdKey = intPreferencesKey("auto_wallpaper_category_id")
     private val autoWallpaperIntervalKey = intPreferencesKey("auto_wallpaper_interval")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
+    private val liveWallpaperVideoPathKey = stringPreferencesKey("live_wallpaper_video_path")
 
     val theme: Flow<AppTheme> = context.dataStore.data.map { preferences ->
         val themeName = preferences[themeKey] ?: AppTheme.SYSTEM.name
@@ -39,6 +40,10 @@ class SettingsManager @Inject constructor(
         } catch (e: Exception) {
             AppTheme.SYSTEM
         }
+    }
+
+    val liveWallpaperVideoPath: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[liveWallpaperVideoPathKey]
     }
 
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -113,6 +118,16 @@ class SettingsManager @Inject constructor(
     suspend fun setOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[onboardingCompletedKey] = completed
+        }
+    }
+
+    suspend fun setLiveWallpaperVideoPath(path: String?) {
+        context.dataStore.edit { preferences ->
+            if (path == null) {
+                preferences.remove(liveWallpaperVideoPathKey)
+            } else {
+                preferences[liveWallpaperVideoPathKey] = path
+            }
         }
     }
 }

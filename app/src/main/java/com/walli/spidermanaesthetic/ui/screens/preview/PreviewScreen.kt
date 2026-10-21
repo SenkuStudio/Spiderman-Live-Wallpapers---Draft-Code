@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Wallpaper
@@ -140,6 +141,87 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.walli.spidermanaesthetic.ui.components.UnlockPremiumDialog
 import kotlin.math.abs
+
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import androidx.compose.ui.viewinterop.AndroidView
+
+@Composable
+fun VideoPlayer(
+    videoUrl: String,
+    modifier: Modifier = Modifier,
+    isMuted: Boolean = true,
+    onReady: () -> Unit = {},
+    onError: () -> Unit = {},
+    retryCount: Int = 0
+) {
+    val context = LocalContext.current
+    val exoPlayer = remember {
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            .setAllowCrossProtocolRedirects(true)
+        
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+        
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(dataSourceFactory)
+
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build().apply {
+                repeatMode = Player.REPEAT_MODE_ALL
+                playWhenReady = true
+                if (isMuted) {
+                    volume = 0f
+                }
+            }
+    }
+
+    val listener = remember {
+        object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    onReady()
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("VideoPlayer", "Playback error: ${error.message}", error)
+                onError()
+            }
+        }
+    }
+
+    LaunchedEffect(videoUrl, retryCount) {
+        exoPlayer.removeListener(listener)
+        exoPlayer.addListener(listener)
+        val mediaItem = MediaItem.fromUri(videoUrl)
+        exoPlayer.setMediaItem(mediaItem)
+        exoPlayer.prepare()
+    }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    AndroidView(
+        factory = {
+            PlayerView(it).apply {
+                player = exoPlayer
+                useController = false
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+        },
+        modifier = modifier
+    )
+}
 
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -340,6 +422,9 @@ fun PreviewRoute(
     )
 
     val currentActualPage = if (state.items.isNotEmpty()) pagerState.currentPage % state.items.size else 0
+    val currentWallpaper = state.items.getOrNull(currentActualPage) as? Wallpaper
+    val isLiveContent = currentWallpaper?.isLive ?: false
+
     val currentTransformation = state.transformations[currentActualPage] ?: ImageTransformation()
 
     if (showSetSheet) {
@@ -375,11 +460,17 @@ fun PreviewRoute(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    WallpaperTarget.entries.forEach { target ->
+                    val availableTargets = if (isLiveContent) {
+                        listOf(WallpaperTarget.LIVE)
+                    } else {
+                        WallpaperTarget.entries.filter { it != WallpaperTarget.LIVE }
+                    }
+                    availableTargets.forEach { target ->
                         val icon = when (target) {
                             WallpaperTarget.HOME -> Icons.Rounded.Home
                             WallpaperTarget.LOCK -> Icons.Rounded.Lock
                             WallpaperTarget.BOTH -> Icons.Rounded.Wallpaper
+                            WallpaperTarget.LIVE -> Icons.Rounded.PlayCircle
                         }
 
                         Surface(
@@ -516,6 +607,7 @@ fun PreviewRoute(
                             val isLockedInner = itemInner.isPremium && !itemInner.isUnlocked
 
                             var isLoadedInner by remember(itemInner.id) { mutableStateOf(false) }
+                            var isErrorInner by remember(itemInner.id) { mutableStateOf(false) }
                             var retryCountInner by remember(itemInner.id) { mutableStateOf(0) }
 
                             val transformationInner = state.transformations[actualPageInner] ?: ImageTransformation()
@@ -728,131 +820,130 @@ fun PreviewRoute(
                                     imageModifier
                                 }
 
-                                if (!isLockedInner) {
-                                    coil3.compose.AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(itemInner.thumbnailUrl)
-                                            .build(),
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .blur(24.dp)
-                                            .graphicsLayer { 
-                                                alpha = 0.5f 
-                                                clip = true
-                                            },
-                                        contentScale = ContentScale.Crop,
-                                        alignment = Alignment.Center
-                                    )
-                                }
+                                val isLiveInner = itemInner.isLive
 
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(if (isLockedInner) itemInner.thumbnailUrl else itemInner.imageUrl)
-                                        .apply {
-                                            if (retryCountInner > 0) {
-                                                memoryCacheKey("${itemInner.id}_retry_$retryCountInner")
+                                if (isLiveInner) {
+                                    if (isErrorInner) {
+                                        PreviewErrorState(onRetry = {
+                                            isErrorInner = false
+                                            retryCountInner++
+                                        })
+                                    } else {
+                                        VideoPlayer(
+                                            videoUrl = itemInner.contentUrl,
+                                            modifier = imageModifier.graphicsLayer {
+                                                // Reset transformations for video player as it doesn't support them well yet
+                                                // and we want it to fill the screen correctly
+                                                scaleX = 1f
+                                                scaleY = 1f
+                                                translationX = 0f
+                                                translationY = 0f
+                                                rotationZ = 0f
+                                            },
+                                            onReady = { isLoadedInner = true },
+                                            onError = { isErrorInner = true },
+                                            retryCount = retryCountInner
+                                        )
+                                    }
+                                } else {
+                                    if (!isLockedInner) {
+                                        coil3.compose.AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(itemInner.thumbnailUrl)
+                                                .build(),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .blur(24.dp)
+                                                .graphicsLayer {
+                                                    alpha = 0.5f
+                                                    clip = true
+                                                },
+                                            contentScale = ContentScale.Crop,
+                                            alignment = Alignment.Center
+                                        )
+                                    }
+
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(if (isLockedInner) itemInner.thumbnailUrl else itemInner.imageUrl)
+                                            .apply {
+                                                if (retryCountInner > 0) {
+                                                    memoryCacheKey("${itemInner.id}_retry_$retryCountInner")
+                                                }
                                             }
-                                        }
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = itemInner.title,
-                                    modifier = sharedImageModifier,
-                                    contentScale = ContentScale.Fit,
-                                    alignment = Alignment.Center,
-                                    onSuccess = { state ->
-                                        isLoadedInner = true
-                                        val size = state.painter.intrinsicSize
-                                        if (size.width > 0 && size.height > 0) {
-                                            val scaleX = metrics.widthPixels.toFloat() / size.width
-                                            val scaleY = metrics.heightPixels.toFloat() / size.height
-                                            isImageWide = scaleY > scaleX
-                                            baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
-                                        }
-                                    },
-                                    loading = {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            placeholder?.let { bitmap ->
-                                                androidx.compose.foundation.Image(
-                                                    bitmap = bitmap,
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = itemInner.title,
+                                        modifier = sharedImageModifier,
+                                        contentScale = ContentScale.Fit,
+                                        alignment = Alignment.Center,
+                                        onSuccess = { state ->
+                                            isLoadedInner = true
+                                            val size = state.painter.intrinsicSize
+                                            if (size.width > 0 && size.height > 0) {
+                                                val scaleX = metrics.widthPixels.toFloat() / size.width
+                                                val scaleY = metrics.heightPixels.toFloat() / size.height
+                                                isImageWide = scaleY > scaleX
+                                                baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
+                                            }
+                                        },
+                                        loading = {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                placeholder?.let { bitmap ->
+                                                    androidx.compose.foundation.Image(
+                                                        bitmap = bitmap,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = ContentScale.Fit,
+                                                        alignment = Alignment.Center
+                                                    )
+                                                }
+
+                                                coil3.compose.AsyncImage(
+                                                    model = ImageRequest.Builder(context)
+                                                        .data(itemInner.thumbnailUrl)
+                                                        .size(320, 480)
+                                                        .precision(coil3.size.Precision.INEXACT)
+                                                        .build(),
                                                     contentDescription = null,
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = ContentScale.Fit,
                                                     alignment = Alignment.Center
                                                 )
-                                            }
-                                            
-                                            coil3.compose.AsyncImage(
-                                                model = ImageRequest.Builder(context)
-                                                    .data(itemInner.thumbnailUrl)
-                                                    .size(320, 480)
-                                                    .precision(coil3.size.Precision.INEXACT)
-                                                    .build(),
-                                                contentDescription = null,
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Fit,
-                                                alignment = Alignment.Center
-                                            )
 
-                                            Surface(
-                                                shape = RoundedCornerShape(24.dp),
-                                                color = Color.Black.copy(alpha = 0.2f),
-                                                modifier = Modifier.size(80.dp),
-                                            ) {
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier.background(
-                                                        Brush.linearGradient(
-                                                            colors = listOf(
-                                                                Color.White.copy(alpha = 0.15f),
-                                                                Color.White.copy(alpha = 0.05f)
+                                                Surface(
+                                                    shape = RoundedCornerShape(24.dp),
+                                                    color = Color.Black.copy(alpha = 0.2f),
+                                                    modifier = Modifier.size(80.dp),
+                                                ) {
+                                                    Box(
+                                                        contentAlignment = Alignment.Center,
+                                                        modifier = Modifier.background(
+                                                            Brush.linearGradient(
+                                                                colors = listOf(
+                                                                    Color.White.copy(alpha = 0.15f),
+                                                                    Color.White.copy(alpha = 0.05f)
+                                                                )
                                                             )
                                                         )
-                                                    )
-                                                ) {
-                                                    PremiumLoader(
-                                                        isPremium = itemInner.isPremium && !itemInner.isUnlocked,
-                                                        color = Color.White
-                                                    )
+                                                    ) {
+                                                        PremiumLoader(
+                                                            isPremium = itemInner.isPremium && !itemInner.isUnlocked,
+                                                            color = Color.White
+                                                        )
+                                                    }
                                                 }
                                             }
+                                        },
+                                        error = {
+                                            PreviewErrorState(onRetry = { retryCountInner++ })
                                         }
-                                    },
-                                    error = {
-                                        Column(
-                                            modifier = Modifier.fillMaxSize(),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Warning,
-                                                contentDescription = "Error",
-                                                tint = Color.White.copy(alpha = 0.5f),
-                                                modifier = Modifier.size(48.dp)
-                                            )
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            androidx.compose.material3.Button(
-                                                onClick = { retryCountInner++ },
-                                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                                    containerColor = Color.White.copy(alpha = 0.2f),
-                                                    contentColor = Color.White
-                                                ),
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.Refresh,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text("Retry")
-                                            }
-                                        }
-                                    }
-                                )
+                                    )
+                                }
 
                                 if (isLockedInner) {
                                     LockedOverlay(
@@ -1620,6 +1711,39 @@ private fun LockedOverlay(
                     Text("Unlock to View")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PreviewErrorState(onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Warning,
+            contentDescription = "Error",
+            tint = Color.White.copy(alpha = 0.5f),
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        androidx.compose.material3.Button(
+            onClick = onRetry,
+            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                containerColor = Color.White.copy(alpha = 0.2f),
+                contentColor = Color.White
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Retry")
         }
     }
 }

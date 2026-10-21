@@ -28,6 +28,7 @@ class WallpaperDownloader @Inject constructor(
     suspend fun download(
         url: String,
         title: String,
+        isLive: Boolean = false,
         scale: Float = 1f,
         offsetX: Float = 0f,
         offsetY: Float = 0f,
@@ -42,11 +43,13 @@ class WallpaperDownloader @Inject constructor(
         applier: WallpaperApplier? = null
     ): Result<Uri> = withContext(Dispatchers.IO) {
         runCatching {
-            val fileName = "${title.asSafeFileName()}-${System.currentTimeMillis()}.jpg"
+            val extension = if (isLive) "mp4" else "jpg"
+            val mimeType = if (isLive) "video/mp4" else "image/jpeg"
+            val fileName = "${title.asSafeFileName()}-${System.currentTimeMillis()}.$extension"
 
-            val finalBitmap = if (scale != 1f || offsetX != 0f || offsetY != 0f || rotation != 0f ||
+            val finalBitmap = if (!isLive && (scale != 1f || offsetX != 0f || offsetY != 0f || rotation != 0f ||
                 brightness != 1f || contrast != 1f || blur != 0f || saturation != 1f || hue != 0f ||
-                structure != 0f || details != 0f) {
+                structure != 0f || details != 0f)) {
                 // If there are transformations, we need to process the bitmap
                 val request = Request.Builder().url(url).build()
                 val response = okHttpClient.newCall(request).execute()
@@ -65,15 +68,19 @@ class WallpaperDownloader @Inject constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                     put(
                         MediaStore.MediaColumns.RELATIVE_PATH,
-                        Environment.DIRECTORY_DOWNLOADS + "/Spiderman Wallpapers",
+                        if (isLive) Environment.DIRECTORY_MOVIES + "/Spiderman Wallpapers" 
+                        else Environment.DIRECTORY_DOWNLOADS + "/Spiderman Wallpapers",
                     )
                 }
 
+                val contentUri = if (isLive) MediaStore.Video.Media.EXTERNAL_CONTENT_URI 
+                                else MediaStore.Downloads.EXTERNAL_CONTENT_URI
+
                 val uri = context.contentResolver.insert(
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    contentUri,
                     values,
                 ) ?: error("Unable to create MediaStore entry")
 

@@ -13,4 +13,15 @@ data class Wallpaper(
     val isFavorite: Boolean = false,
     val isFeatured: Boolean = false,
     val blurHash: String? = null,
-)
+    val videoUrl: String? = null,
+    val wallpaperType: String? = null,
+) {
+    val isLive: Boolean
+        get() = wallpaperType?.equals("live", ignoreCase = true) == true ||
+                videoUrl?.isNotEmpty() == true ||
+                category.trim().equals("Live", ignoreCase = true) ||
+                imageUrl.lowercase().contains(".mp4")
+
+    val contentUrl: String
+        get() = if (isLive) videoUrl ?: imageUrl else imageUrl
+}

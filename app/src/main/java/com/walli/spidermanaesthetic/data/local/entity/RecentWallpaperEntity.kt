@@ -15,4 +15,6 @@ data class RecentWallpaperEntity(
     val isPremium: Boolean,
     val viewedAt: Long,
     val blurHash: String? = null,
+    val videoUrl: String? = null,
+    val wallpaperType: String? = null,
 )

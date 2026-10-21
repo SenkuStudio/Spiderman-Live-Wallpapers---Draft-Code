@@ -44,13 +44,19 @@ object NetworkModule {
         val apiKeyInterceptor = Interceptor { chain ->
             val original = chain.request()
             val originalHttpUrl = original.url
-
-            val url = originalHttpUrl.newBuilder()
-                .addQueryParameter("api_key", BuildConfig.API_KEY)
-                .build()
-
-            val requestBuilder = original.newBuilder().url(url)
-            chain.proceed(requestBuilder.build())
+            
+            // Only add API key to our own API requests
+            val request = if (originalHttpUrl.host.contains("walli") || 
+                (BuildConfig.BASE_URL.isNotEmpty() && originalHttpUrl.toString().startsWith(BuildConfig.BASE_URL))) {
+                val url = originalHttpUrl.newBuilder()
+                    .addQueryParameter("api_key", BuildConfig.API_KEY)
+                    .build()
+                original.newBuilder().url(url).build()
+            } else {
+                original
+            }
+            
+            chain.proceed(request)
         }
 
         // Create a trust manager that does not validate certificate chains

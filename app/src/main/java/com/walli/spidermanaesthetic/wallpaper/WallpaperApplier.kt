@@ -12,6 +12,11 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.content.ComponentName
+import android.content.Intent
+import com.walli.spidermanaesthetic.data.settings.SettingsManager
+import java.io.FileOutputStream
+import java.io.File
 import com.walli.spidermanaesthetic.domain.model.WallpaperTarget
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -20,11 +25,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.ResponseBody
 
 @Singleton
 class WallpaperApplier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
+    private val settingsManager: SettingsManager,
 ) {
     suspend fun apply(
         url: String,
@@ -50,6 +57,16 @@ class WallpaperApplier @Inject constructor(
                 error("Wallpaper changes are restricted on this device")
             }
 
+            if (target == WallpaperTarget.LIVE) {
+                return@withContext applyLiveWallpaper(url)
+            }
+
+            // Clean up old live wallpaper video if we're setting a static one
+            val oldLiveVideo = File(context.filesDir, "live_wallpaper.mp4")
+            if (oldLiveVideo.exists()) {
+                oldLiveVideo.delete()
+            }
+
             val request = Request.Builder().url(url).build()
             val response = okHttpClient.newCall(request).execute()
             if (!response.isSuccessful) error("Image fetch failed with ${response.code}")
@@ -71,6 +88,33 @@ class WallpaperApplier @Inject constructor(
             } else {
                 wallpaperManager.setBitmap(transformedBitmap)
             }
+            Unit
+        }
+    }
+
+    private suspend fun applyLiveWallpaper(url: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder().url(url).build()
+            val response = okHttpClient.newCall(request).execute()
+            if (!response.isSuccessful) error("Video fetch failed")
+            
+            val videoFile = File(context.filesDir, "live_wallpaper.mp4")
+            response.body?.byteStream()?.use { input ->
+                FileOutputStream(videoFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            
+            settingsManager.setLiveWallpaperVideoPath(videoFile.absolutePath)
+            
+            val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                putExtra(
+                    WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                    ComponentName(context, VideoWallpaperService::class.java)
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
             Unit
         }
     }

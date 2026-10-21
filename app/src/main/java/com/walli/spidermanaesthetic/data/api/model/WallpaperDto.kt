@@ -29,6 +29,8 @@ data class WallpaperDto(
     @SerializedName("is_premium") val isPremium: Boolean = false,
     @SerializedName("category") val category: CategoryDto,
     @SerializedName("blur_hash") val blurHash: String? = null,
+    @SerializedName("wallpaper_type") val wallpaperType: String? = null,
+    @SerializedName("video_url") val videoUrl: String? = null,
 )
 
 data class CategoryDto(

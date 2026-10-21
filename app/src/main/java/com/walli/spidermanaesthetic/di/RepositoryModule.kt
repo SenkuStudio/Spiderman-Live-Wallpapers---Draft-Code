@@ -1,6 +1,7 @@
 package com.walli.spidermanaesthetic.di
 
 import com.walli.spidermanaesthetic.data.repository.LibraryRepositoryImpl
+import com.walli.spidermanaesthetic.data.repository.MockWallpaperRepositoryImpl
 import com.walli.spidermanaesthetic.data.repository.WallpaperRepositoryImpl
 import com.walli.spidermanaesthetic.domain.repository.LibraryRepository
 import com.walli.spidermanaesthetic.domain.repository.WallpaperRepository

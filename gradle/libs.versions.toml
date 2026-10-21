@@ -19,6 +19,7 @@ ump = "3.1.0"
 coroutines = "1.10.2"
 gson = "2.13.1"
 palette = "1.0.0"
+media3 = "1.11.1"
 material = "1.12.0"
 unityAds = "4.20.0.0"
 unityAdsSdk = "4.20.0"
@@ -75,6 +76,8 @@ ump = { module = "com.google.android.ump:user-messaging-platform", version.ref =
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 palette-ktx = { module = "androidx.palette:palette-ktx", version.ref = "palette" }
+androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
+androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 unity-mediation = { module = "com.google.ads.mediation:unity", version.ref = "unityAds" }
 unity-ads = { module = "com.unity3d.ads:unity-ads", version.ref = "unityAdsSdk" }
 meta-mediation = { module = "com.google.ads.mediation:facebook", version.ref = "metaAds" }

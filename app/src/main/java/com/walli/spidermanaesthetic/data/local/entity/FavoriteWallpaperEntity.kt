@@ -15,4 +15,6 @@ data class FavoriteWallpaperEntity(
     val isPremium: Boolean,
     val addedAt: Long,
     val blurHash: String? = null,
+    val videoUrl: String? = null,
+    val wallpaperType: String? = null,
 )
