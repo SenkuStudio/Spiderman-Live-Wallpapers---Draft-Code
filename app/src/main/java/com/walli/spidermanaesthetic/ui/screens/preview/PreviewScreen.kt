@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Refresh
@@ -156,6 +157,7 @@ fun VideoPlayer(
     videoUrl: String,
     modifier: Modifier = Modifier,
     isMuted: Boolean = true,
+    isPlaying: Boolean = true,
     onReady: () -> Unit = {},
     onError: () -> Unit = {},
     retryCount: Int = 0
@@ -175,11 +177,15 @@ fun VideoPlayer(
             .setMediaSourceFactory(mediaSourceFactory)
             .build().apply {
                 repeatMode = Player.REPEAT_MODE_ALL
-                playWhenReady = true
+                playWhenReady = isPlaying
                 if (isMuted) {
                     volume = 0f
                 }
             }
+    }
+
+    LaunchedEffect(isPlaying) {
+        exoPlayer.playWhenReady = isPlaying
     }
 
     val listener = remember {
@@ -217,6 +223,9 @@ fun VideoPlayer(
                 player = exoPlayer
                 useController = false
                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                // Use TextureView to avoid Z-order overlapping issues in Pager
+                // Note: setSurfaceType is not available programmatically. 
+                // If Z-order issues occur, consider using an XML layout with app:surface_type="texture_view"
             }
         },
         modifier = modifier
@@ -456,54 +465,74 @@ fun PreviewRoute(
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
 
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     val availableTargets = if (isLiveContent) {
                         listOf(WallpaperTarget.LIVE)
                     } else {
-                        WallpaperTarget.entries.filter { it != WallpaperTarget.LIVE }
+                        listOf(
+                            WallpaperTarget.HOME,
+                            WallpaperTarget.LOCK,
+                            WallpaperTarget.BOTH,
+                            WallpaperTarget.PARALLAX
+                        )
                     }
-                    availableTargets.forEach { target ->
-                        val icon = when (target) {
-                            WallpaperTarget.HOME -> Icons.Rounded.Home
-                            WallpaperTarget.LOCK -> Icons.Rounded.Lock
-                            WallpaperTarget.BOTH -> Icons.Rounded.Wallpaper
-                            WallpaperTarget.LIVE -> Icons.Rounded.PlayCircle
-                        }
-
-                        Surface(
-                            onClick = {
-                                showSetSheet = false
-                                val actualPage = pagerState.currentPage % state.items.size
-                                viewModel.requestSetWallpaper(actualPage, target)
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            )
+                    
+                    availableTargets.chunked(2).forEach { rowTargets ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Text(
-                                    text = target.label.replace(" screen", ""),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            rowTargets.forEach { target ->
+                                val icon = when (target) {
+                                    WallpaperTarget.HOME -> Icons.Rounded.Home
+                                    WallpaperTarget.LOCK -> Icons.Rounded.Lock
+                                    WallpaperTarget.BOTH -> Icons.Rounded.Wallpaper
+                                    WallpaperTarget.LIVE -> Icons.Rounded.PlayCircle
+                                    WallpaperTarget.PARALLAX -> Icons.Rounded.Layers
+                                }
+
+                                Surface(
+                                    onClick = {
+                                        showSetSheet = false
+                                        val actualPage = pagerState.currentPage % state.items.size
+                                        viewModel.requestSetWallpaper(actualPage, target)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(vertical = 20.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                        Text(
+                                            text = target.label.replace(" screen", "").replace(" wallpaper", ""),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            // Add an invisible spacer if the row is not full to maintain grid proportions
+                            if (rowTargets.size == 1 && availableTargets.size > 1) {
+                                Box(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -570,10 +599,10 @@ fun PreviewRoute(
                 ) {
                     HorizontalPager(
                         state = pagerState,
-                        beyondViewportPageCount = 1,
+                        beyondViewportPageCount = 0,
                         pageSpacing = 16.dp,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = !state.isEditMode,
+                        userScrollEnabled = false, // Disabled horizontal scroll as requested
                         key = { page -> 
                             val item = state.items.getOrNull(page % state.items.size)
                             when (item) {
@@ -641,12 +670,12 @@ fun PreviewRoute(
                             }
 
                             val metrics = LocalContext.current.resources.displayMetrics
-                            var isImageWide by remember(itemInner.id) { mutableStateOf(false) }
+                            // var isImageWide by remember(itemInner.id) { mutableStateOf(false) }
                             var baseScaleFill by remember(itemInner.id) {
                                 val initialScale = if (placeholder != null) {
                                     val scaleX = metrics.widthPixels.toFloat() / placeholder.width
                                     val scaleY = metrics.heightPixels.toFloat() / placeholder.height
-                                    isImageWide = scaleY > scaleX
+                                    // isImageWide = scaleY > scaleX
                                     maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
                                 } else 1f
                                 mutableStateOf(initialScale)
@@ -673,19 +702,19 @@ fun PreviewRoute(
                                                 val pivot = centroid - Offset(size.width / 2f, size.height / 2f)
                                                 val zoomOffset = (currentOffset - pivot) * scaleChange + pivot - currentOffset
                                                 
-                                                var panX = pan.x
-                                                // Edge detection for horizontal panning when zoomed
+                                                val panX = pan.x
+                                                /* Edge detection for horizontal panning disabled as horizontal scroll is removed
                                                 if (newScale > 1.01f) {
                                                     val imageWidth = size.width * newScale * (if (isImageWide) baseScaleFill else 1f)
                                                     val maxOffsetX = ((imageWidth - size.width) / 2f).coerceAtLeast(0f)
 
-                                                    // Allow pager scroll if we're at the horizontal boundaries
                                                     if (pan.x > 0 && currentOffset.x >= maxOffsetX - 1f) {
                                                         panX = 0f
                                                     } else if (pan.x < 0 && currentOffset.x <= -maxOffsetX + 1f) {
                                                         panX = 0f
                                                     }
                                                 }
+                                                */
 
                                                 val newOffset = currentOffset + zoomOffset + Offset(panX, pan.y)
                                                 val newRotation = currentRotationValue + rotation
@@ -704,14 +733,15 @@ fun PreviewRoute(
                                                 val zoomConsumed = zoom != 1f
                                                 val rotationConsumed = rotation != 0f
                                                 
-                                                var shouldConsume = zoomConsumed || rotationConsumed || verticalConsumed || horizontalConsumed
+                                                val shouldConsume = zoomConsumed || rotationConsumed || verticalConsumed || horizontalConsumed
                                                 
+                                                /* Pager release logic disabled
                                                 if (!horizontalConsumed && pan.x != 0f) {
-                                                    // At edge. If mostly horizontal, release to pager.
                                                     if (abs(pan.x) > abs(pan.y) * 2f) {
                                                         shouldConsume = false
                                                     }
                                                 }
+                                                */
                                                 
                                                 shouldConsume
                                             },
@@ -809,41 +839,79 @@ fun PreviewRoute(
                                         clip = true
                                     }
 
-                                val sharedImageModifier = if (page == state.initialIndex) {
-                                    with(sharedTransitionScope) {
-                                        imageModifier.sharedElement(
-                                            rememberSharedContentState(key = "image-${itemInner.id}"),
-                                            animatedVisibilityScope = animatedVisibilityScope
-                                        )
-                                    }
-                                } else {
-                                    imageModifier
+                                val sharedImageModifier = with(sharedTransitionScope) {
+                                    imageModifier.sharedElement(
+                                        rememberSharedContentState(key = "image-${itemInner.id}"),
+                                        animatedVisibilityScope = animatedVisibilityScope
+                                    )
                                 }
 
                                 val isLiveInner = itemInner.isLive
 
                                 if (isLiveInner) {
-                                    if (isErrorInner) {
-                                        PreviewErrorState(onRetry = {
-                                            isErrorInner = false
-                                            retryCountInner++
-                                        })
-                                    } else {
-                                        VideoPlayer(
-                                            videoUrl = itemInner.contentUrl,
-                                            modifier = imageModifier.graphicsLayer {
-                                                // Reset transformations for video player as it doesn't support them well yet
-                                                // and we want it to fill the screen correctly
-                                                scaleX = 1f
-                                                scaleY = 1f
-                                                translationX = 0f
-                                                translationY = 0f
-                                                rotationZ = 0f
-                                            },
-                                            onReady = { isLoadedInner = true },
-                                            onError = { isErrorInner = true },
-                                            retryCount = retryCountInner
-                                        )
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        if (isErrorInner) {
+                                            PreviewErrorState(onRetry = {
+                                                isErrorInner = false
+                                                retryCountInner++
+                                            })
+                                        } else {
+                                            VideoPlayer(
+                                                videoUrl = itemInner.contentUrl,
+                                                isPlaying = pagerState.currentPage == page,
+                                                modifier = imageModifier.graphicsLayer {
+                                                    // Reset transformations for video player as it doesn't support them well yet
+                                                    // and we want it to fill the screen correctly
+                                                    scaleX = 1f
+                                                    scaleY = 1f
+                                                    translationX = 0f
+                                                    translationY = 0f
+                                                    rotationZ = 0f
+                                                },
+                                                onReady = { isLoadedInner = true },
+                                                onError = { isErrorInner = true },
+                                                retryCount = retryCountInner
+                                            )
+
+                                            if (!isLoadedInner) {
+                                                coil3.compose.AsyncImage(
+                                                    model = ImageRequest.Builder(context)
+                                                        .data(itemInner.thumbnailUrl)
+                                                        .build(),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(24.dp),
+                                                        color = Color.Black.copy(alpha = 0.2f),
+                                                        modifier = Modifier.size(80.dp),
+                                                    ) {
+                                                        Box(
+                                                            contentAlignment = Alignment.Center,
+                                                            modifier = Modifier.background(
+                                                                Brush.linearGradient(
+                                                                    colors = listOf(
+                                                                        Color.White.copy(alpha = 0.15f),
+                                                                        Color.White.copy(alpha = 0.05f)
+                                                                    )
+                                                                )
+                                                            )
+                                                        ) {
+                                                            PremiumLoader(
+                                                                isPremium = itemInner.isPremium && !itemInner.isUnlocked,
+                                                                color = Color.White
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 } else {
                                     if (!isLockedInner) {
@@ -884,7 +952,7 @@ fun PreviewRoute(
                                             if (size.width > 0 && size.height > 0) {
                                                 val scaleX = metrics.widthPixels.toFloat() / size.width
                                                 val scaleY = metrics.heightPixels.toFloat() / size.height
-                                                isImageWide = scaleY > scaleX
+                                                // isImageWide = scaleY > scaleX
                                                 baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
                                             }
                                         },
@@ -1014,6 +1082,7 @@ fun PreviewRoute(
                                     }
                                 }
 
+                                /* Page indicator disabled
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
                                     color = animatedDominantColor.copy(alpha = 0.95f),
@@ -1027,6 +1096,7 @@ fun PreviewRoute(
                                         color = onDominantColor,
                                     )
                                 }
+                                */
                             }
                         }
                     }
@@ -1064,6 +1134,7 @@ fun PreviewRoute(
                                             )
                                         }
 
+                                        /* Horizontal navigation buttons disabled
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1116,6 +1187,7 @@ fun PreviewRoute(
                                                 Icon(Icons.Rounded.ChevronRight, contentDescription = null)
                                             }
                                         }
+                                        */
 
                                         Spacer(modifier = Modifier.height(16.dp))
 
@@ -1207,6 +1279,7 @@ fun PreviewRoute(
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                             }
+                                            /* Commented out Share and Edit buttons as per request
                                             FilledIconButton(
                                                 onClick = {
                                                     if (item.isPremium && !item.isUnlocked) {
@@ -1250,6 +1323,7 @@ fun PreviewRoute(
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                             }
+                                            */
                                         }
                                         Row(
                                             modifier = Modifier

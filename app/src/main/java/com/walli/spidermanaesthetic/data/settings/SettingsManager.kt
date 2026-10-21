@@ -32,6 +32,7 @@ class SettingsManager @Inject constructor(
     private val autoWallpaperIntervalKey = intPreferencesKey("auto_wallpaper_interval")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val liveWallpaperVideoPathKey = stringPreferencesKey("live_wallpaper_video_path")
+    private val parallaxWallpaperImagePathKey = stringPreferencesKey("parallax_wallpaper_image_path")
 
     val theme: Flow<AppTheme> = context.dataStore.data.map { preferences ->
         val themeName = preferences[themeKey] ?: AppTheme.SYSTEM.name
@@ -44,6 +45,10 @@ class SettingsManager @Inject constructor(
 
     val liveWallpaperVideoPath: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[liveWallpaperVideoPathKey]
+    }
+
+    val parallaxWallpaperImagePath: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[parallaxWallpaperImagePathKey]
     }
 
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { preferences ->
@@ -127,6 +132,16 @@ class SettingsManager @Inject constructor(
                 preferences.remove(liveWallpaperVideoPathKey)
             } else {
                 preferences[liveWallpaperVideoPathKey] = path
+            }
+        }
+    }
+
+    suspend fun setParallaxWallpaperImagePath(path: String?) {
+        context.dataStore.edit { preferences ->
+            if (path == null) {
+                preferences.remove(parallaxWallpaperImagePathKey)
+            } else {
+                preferences[parallaxWallpaperImagePathKey] = path
             }
         }
     }

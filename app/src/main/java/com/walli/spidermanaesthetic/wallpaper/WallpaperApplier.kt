@@ -61,6 +61,10 @@ class WallpaperApplier @Inject constructor(
                 return@withContext applyLiveWallpaper(url)
             }
 
+            if (target == WallpaperTarget.PARALLAX) {
+                return@withContext applyParallaxWallpaper(url)
+            }
+
             // Clean up old live wallpaper video if we're setting a static one
             val oldLiveVideo = File(context.filesDir, "live_wallpaper.mp4")
             if (oldLiveVideo.exists()) {
@@ -111,6 +115,33 @@ class WallpaperApplier @Inject constructor(
                 putExtra(
                     WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
                     ComponentName(context, VideoWallpaperService::class.java)
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            Unit
+        }
+    }
+
+    private suspend fun applyParallaxWallpaper(url: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder().url(url).build()
+            val response = okHttpClient.newCall(request).execute()
+            if (!response.isSuccessful) error("Image fetch failed")
+
+            val imageFile = File(context.filesDir, "parallax_wallpaper.jpg")
+            response.body?.byteStream()?.use { input ->
+                FileOutputStream(imageFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            settingsManager.setParallaxWallpaperImagePath(imageFile.absolutePath)
+
+            val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                putExtra(
+                    WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                    ComponentName(context, ParallaxWallpaperService::class.java)
                 )
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }

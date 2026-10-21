@@ -156,6 +156,13 @@ class PreviewViewModel @Inject constructor(
             val item = _uiState.value.items.getOrNull(index)
             if (item is Wallpaper) {
                 saveRecentWallpaperUseCase(item)
+                
+                // Update session index for grid synchronization
+                val session = previewSessionManager.session.value
+                val rawIndex = session.items.indexOfFirst { it.id == item.id }
+                if (rawIndex != -1) {
+                    previewSessionManager.updateCurrentIndex(rawIndex)
+                }
             }
             
             // Automatically reset transformations and exit edit mode when moving to a new image

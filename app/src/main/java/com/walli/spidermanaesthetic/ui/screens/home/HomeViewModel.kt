@@ -56,9 +56,20 @@ class HomeViewModel @Inject constructor(
         observeFavoritesAndUnlocks()
         observeRecents()
         observeCache()
+        observePreviewSession()
         loadCategories()
         refresh()
         startFeaturedRotation()
+    }
+
+    private fun observePreviewSession() {
+        viewModelScope.launch {
+            previewSessionManager.session.collect { session ->
+                if (session.source == "home") {
+                    _uiState.update { it.copy(currentPreviewIndex = session.currentIndex) }
+                }
+            }
+        }
     }
 
     private fun startFeaturedRotation() {

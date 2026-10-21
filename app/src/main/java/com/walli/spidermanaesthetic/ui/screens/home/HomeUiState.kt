@@ -19,4 +19,5 @@ data class HomeUiState(
     val wallpaperToUnlock: Wallpaper? = null,
     val featuredWallpapers: List<Wallpaper> = emptyList(),
     val isPremiumPassActive: Boolean = false,
+    val currentPreviewIndex: Int? = null,
 )

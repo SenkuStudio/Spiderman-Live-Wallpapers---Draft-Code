@@ -268,6 +268,22 @@ private fun HomeScreen(
         onLoadMore = onLoadMore,
     )
 
+    LaunchedEffect(state.currentPreviewIndex) {
+        val wIndex = state.currentPreviewIndex
+        if (wIndex != null && wIndex < state.wallpapers.size) {
+            val baseOffset = if (state.featuredWallpapers.isNotEmpty()) 2 else 1
+            val adOffset = wIndex / 6
+            val gridIndex = baseOffset + wIndex + adOffset
+
+            val visibleItems = gridState.layoutInfo.visibleItemsInfo
+            val isVisible = visibleItems.any { it.index == gridIndex }
+
+            if (!isVisible) {
+                gridState.scrollToItem(gridIndex)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             HomeTopBar(onMenuClick = onMenuClick)

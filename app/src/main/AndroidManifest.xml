@@ -100,5 +100,18 @@
                 android:resource="@xml/wallpaper_metadata" />
         </service>
 
+        <service
+            android:name=".wallpaper.ParallaxWallpaperService"
+            android:exported="true"
+            android:label="Spiderman Parallax"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper_metadata" />
+        </service>
+
     </application>
 </manifest>

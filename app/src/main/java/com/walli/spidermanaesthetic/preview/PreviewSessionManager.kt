@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 data class PreviewSession(
     val items: List<Wallpaper> = emptyList(),
     val initialIndex: Int = 0,
+    val currentIndex: Int = 0,
     val source: String = "home",
     val page: Int = 1,
     val hasNext: Boolean = true,
@@ -38,6 +39,7 @@ class PreviewSessionManager @Inject constructor() {
         _session.value = PreviewSession(
             items = items,
             initialIndex = initialIndex,
+            currentIndex = initialIndex,
             source = source,
             page = page,
             hasNext = hasNext,
@@ -45,6 +47,10 @@ class PreviewSessionManager @Inject constructor() {
             query = query,
             sort = sort,
         )
+    }
+
+    fun updateCurrentIndex(index: Int) {
+        _session.update { it.copy(currentIndex = index) }
     }
 
     fun updateItems(items: List<Wallpaper>, page: Int, hasNext: Boolean) {

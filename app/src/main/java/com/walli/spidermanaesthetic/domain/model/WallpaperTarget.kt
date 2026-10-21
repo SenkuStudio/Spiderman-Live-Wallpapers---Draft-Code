@@ -5,4 +5,5 @@ enum class WallpaperTarget(val label: String) {
     LOCK("Lock screen"),
     BOTH("Both screens"),
     LIVE("Live wallpaper"),
+    PARALLAX("Parallax wallpaper"),
 }
