@@ -3,7 +3,7 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 
 # API & Data Models
--keep class com.walli.spidermanaesthetic.data.api.model.** { *; }
+-keep class com.walli.spidermanlivewallpapers.data.api.model.** { *; }
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }

@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.walli.spidermanaesthetic"
+    namespace = "com.walli.spidermanlivewallpapers"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.walli.spidermanaesthetic"
+        applicationId = "com.walli.spidermanlivewallpapers"
         minSdk = 24
         targetSdk = 36
         versionCode = 107

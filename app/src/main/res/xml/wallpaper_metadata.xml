@@ -2,4 +2,4 @@
 <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
     android:thumbnail="@drawable/logoappspiderman"
     android:description="@string/app_name"
-    android:settingsActivity="com.walli.spidermanaesthetic.MainActivity" />
+    android:settingsActivity="com.walli.spidermanlivewallpapers.MainActivity" />
