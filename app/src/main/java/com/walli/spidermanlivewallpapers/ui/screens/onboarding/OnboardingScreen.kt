@@ -100,6 +100,7 @@ fun OnboardingScreen(
                 OnboardingPageContent(pages[pageIndex])
             }
 
+            /*
             // Native Ad for Onboarding
             if (pagerState.currentPage == pages.size - 1) {
                 Box(
@@ -117,6 +118,7 @@ fun OnboardingScreen(
                     )
                 }
             }
+            */
 
             // Bottom controls
             Row(
