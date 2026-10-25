@@ -15,8 +15,8 @@ android {
         applicationId = "com.walli.spidermanlivewallpapers"
         minSdk = 24
         targetSdk = 36
-        versionCode = 107
-        versionName = "107.0.0"
+        versionCode = 108
+        versionName = "108.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

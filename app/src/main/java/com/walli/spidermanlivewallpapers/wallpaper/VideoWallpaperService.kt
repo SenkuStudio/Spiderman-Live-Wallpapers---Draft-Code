@@ -54,6 +54,7 @@ class VideoWallpaperService : WallpaperService() {
         private fun initializePlayer(holder: SurfaceHolder) {
             exoPlayer = ExoPlayer.Builder(this@VideoWallpaperService).build().apply {
                 setVideoSurfaceHolder(holder)
+                videoScalingMode = androidx.media3.common.C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
                 repeatMode = Player.REPEAT_MODE_ALL
                 volume = 0f // Wallpapers should be silent
                 

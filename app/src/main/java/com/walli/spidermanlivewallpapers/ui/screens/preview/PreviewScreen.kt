@@ -85,6 +85,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -159,6 +160,7 @@ fun VideoPlayer(
     isMuted: Boolean = true,
     isPlaying: Boolean = true,
     onReady: () -> Unit = {},
+    onVideoSizeChanged: (Int, Int) -> Unit = { _, _ -> },
     onError: () -> Unit = {},
     retryCount: Int = 0
 ) {
@@ -195,6 +197,13 @@ fun VideoPlayer(
                     onReady()
                 }
             }
+
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    onVideoSizeChanged(videoSize.width, videoSize.height)
+                }
+            }
+
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.e("VideoPlayer", "Playback error: ${error.message}", error)
                 onError()
@@ -223,9 +232,6 @@ fun VideoPlayer(
                 player = exoPlayer
                 useController = false
                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                // Use TextureView to avoid Z-order overlapping issues in Pager
-                // Note: setSurfaceType is not available programmatically. 
-                // If Z-order issues occur, consider using an XML layout with app:surface_type="texture_view"
             }
         },
         modifier = modifier
@@ -647,19 +653,20 @@ fun PreviewRoute(
                             val offsetYState = remember(itemInner.id) { Animatable(transformationInner.offset.y) }
                             val rotationState = remember(itemInner.id) { Animatable(transformationInner.rotation) }
 
-                            // Sync local state with ViewModel state when it changes from outside (e.g. double tap, reset)
+                            // Sync local state with ViewModel state when it changes from outside (e.g. reset)
                             LaunchedEffect(transformationInner.scale, transformationInner.offset, transformationInner.rotation) {
+                                val animSpec = tween<Float>(durationMillis = 300)
                                 if (abs(scaleState.value - transformationInner.scale) > 0.001f) {
-                                    scaleState.snapTo(transformationInner.scale)
+                                    scaleState.animateTo(transformationInner.scale, animSpec)
                                 }
-                                if (abs(offsetXState.value - transformationInner.offset.x) > 0.001f) {
-                                    offsetXState.snapTo(transformationInner.offset.x)
+                                if (abs(offsetXState.value - transformationInner.offset.x) > 0.1f) {
+                                    offsetXState.animateTo(transformationInner.offset.x, animSpec)
                                 }
-                                if (abs(offsetYState.value - transformationInner.offset.y) > 0.001f) {
-                                    offsetYState.snapTo(transformationInner.offset.y)
+                                if (abs(offsetYState.value - transformationInner.offset.y) > 0.1f) {
+                                    offsetYState.animateTo(transformationInner.offset.y, animSpec)
                                 }
                                 if (abs(rotationState.value - transformationInner.rotation) > 0.001f) {
-                                    rotationState.snapTo(transformationInner.rotation)
+                                    rotationState.animateTo(transformationInner.rotation, animSpec)
                                 }
                             }
 
@@ -670,13 +677,20 @@ fun PreviewRoute(
                             }
 
                             val metrics = LocalContext.current.resources.displayMetrics
-                            // var isImageWide by remember(itemInner.id) { mutableStateOf(false) }
+                            var imageIntrinsicSize by remember(itemInner.id) {
+                                mutableStateOf(
+                                    if (placeholder != null)
+                                        androidx.compose.ui.geometry.Size(placeholder.width.toFloat(), placeholder.height.toFloat())
+                                    else
+                                        androidx.compose.ui.geometry.Size.Zero
+                                )
+                            }
                             var baseScaleFill by remember(itemInner.id) {
                                 val initialScale = if (placeholder != null) {
                                     val scaleX = metrics.widthPixels.toFloat() / placeholder.width
                                     val scaleY = metrics.heightPixels.toFloat() / placeholder.height
-                                    // isImageWide = scaleY > scaleX
-                                    maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
+                                    // Calculate scale to fill screen (Center Crop behavior)
+                                    if (scaleX > 0 && scaleY > 0) maxOf(scaleX, scaleY) / minOf(scaleX, scaleY) else 1f
                                 } else 1f
                                 mutableStateOf(initialScale)
                             }
@@ -696,27 +710,39 @@ fun PreviewRoute(
                                                 val currentOffset = Offset(offsetXState.value, offsetYState.value)
                                                 val currentRotationValue = rotationState.value
 
-                                                val newScale = (currentScale * zoom).coerceIn(0.05f, 15f)
+                                                val newScale = (currentScale * zoom).coerceIn(0.8f, 15f)
                                                 val scaleChange = newScale / currentScale
                                                 
                                                 val pivot = centroid - Offset(size.width / 2f, size.height / 2f)
                                                 val zoomOffset = (currentOffset - pivot) * scaleChange + pivot - currentOffset
                                                 
                                                 val panX = pan.x
-                                                /* Edge detection for horizontal panning disabled as horizontal scroll is removed
-                                                if (newScale > 1.01f) {
-                                                    val imageWidth = size.width * newScale * (if (isImageWide) baseScaleFill else 1f)
-                                                    val maxOffsetX = ((imageWidth - size.width) / 2f).coerceAtLeast(0f)
+                                                var panY = pan.y
 
-                                                    if (pan.x > 0 && currentOffset.x >= maxOffsetX - 1f) {
-                                                        panX = 0f
-                                                    } else if (pan.x < 0 && currentOffset.x <= -maxOffsetX + 1f) {
-                                                        panX = 0f
+                                                // Calculate bounds to restrict panning based on Fill scale
+                                                val scaleX = if (imageIntrinsicSize.width > 0) size.width / imageIntrinsicSize.width else 1f
+                                                val scaleY = if (imageIntrinsicSize.height > 0) size.height / imageIntrinsicSize.height else 1f
+                                                val sFill = maxOf(scaleX, scaleY)
+                                                
+                                                val finalWidth = imageIntrinsicSize.width * sFill * newScale
+                                                val finalHeight = imageIntrinsicSize.height * sFill * newScale
+                                                
+                                                val maxOffsetX = ((finalWidth - size.width) / 2f).coerceAtLeast(0f)
+                                                val maxOffsetY = ((finalHeight - size.height) / 2f).coerceAtLeast(0f)
+
+                                                // Detect if we should allow swipe-to-dismiss (only for single finger near vertical edges)
+                                                if (isSingleFinger && newScale <= 1.05f) {
+                                                    if (panY > 0 && currentOffset.y >= maxOffsetY - 1f) {
+                                                        panY = 0f
+                                                    } else if (panY < 0 && currentOffset.y <= -maxOffsetY + 1f) {
+                                                        panY = 0f
                                                     }
                                                 }
-                                                */
 
-                                                val newOffset = currentOffset + zoomOffset + Offset(panX, pan.y)
+                                                val newOffset = Offset(
+                                                    (currentOffset.x + zoomOffset.x + panX).coerceIn(-maxOffsetX, maxOffsetX),
+                                                    (currentOffset.y + zoomOffset.y + panY).coerceIn(-maxOffsetY, maxOffsetY)
+                                                )
                                                 val newRotation = currentRotationValue + rotation
 
                                                 // Update local state immediately for smoothness
@@ -728,22 +754,15 @@ fun PreviewRoute(
                                                 }
                                                 
                                                 // Return true if we consumed the gesture
-                                                val horizontalConsumed = panX != 0f
-                                                val verticalConsumed = pan.y != 0f
-                                                val zoomConsumed = zoom != 1f
-                                                val rotationConsumed = rotation != 0f
+                                                val actualPanX = newOffset.x - currentOffset.x
+                                                val actualPanY = newOffset.y - currentOffset.y
                                                 
-                                                val shouldConsume = zoomConsumed || rotationConsumed || verticalConsumed || horizontalConsumed
+                                                val horizontalConsumed = abs(actualPanX) > 0.01f || (isSingleFinger && abs(panX) > 0.01f && newScale > 1.05f)
+                                                val verticalConsumed = abs(actualPanY) > 0.01f || (isSingleFinger && abs(panY) > 0.01f && newScale > 1.05f)
+                                                val zoomConsumed = abs(zoom - 1f) > 0.001f
+                                                val rotationConsumed = abs(rotation) > 0.001f
                                                 
-                                                /* Pager release logic disabled
-                                                if (!horizontalConsumed && pan.x != 0f) {
-                                                    if (abs(pan.x) > abs(pan.y) * 2f) {
-                                                        shouldConsume = false
-                                                    }
-                                                }
-                                                */
-                                                
-                                                shouldConsume
+                                                zoomConsumed || rotationConsumed || verticalConsumed || horizontalConsumed
                                             },
                                             onGestureEnd = {
                                                 // Sync to ViewModel on gesture end
@@ -764,11 +783,49 @@ fun PreviewRoute(
                                         } else {
                                             detectTapGestures(
                                                 onDoubleTap = { tapOffset ->
-                                                    viewModel.handleDoubleTap(
-                                                        index = actualPageInner,
-                                                        tapOffset = tapOffset,
-                                                        center = Offset(size.width / 2f, size.height / 2f)
-                                                    )
+                                                    scope.launch {
+                                                        val currentScale = scaleState.value
+                                                        val targetScale = if (currentScale > 1.05f) 1f else 2.5f
+                                                        
+                                                        val center = Offset(size.width / 2f, size.height / 2f)
+                                                        val newOffset = if (targetScale > 1f) {
+                                                            // Calculate desired offset to zoom into tap position
+                                                            val rawOffset = (tapOffset - center) * (1f - targetScale)
+                                                            
+                                                            // Apply bounds
+                                                            val scaleX = if (imageIntrinsicSize.width > 0) size.width / imageIntrinsicSize.width else 1f
+                                                            val scaleY = if (imageIntrinsicSize.height > 0) size.height / imageIntrinsicSize.height else 1f
+                                                            val sFill = maxOf(scaleX, scaleY)
+                                                            
+                                                            val finalWidth = imageIntrinsicSize.width * sFill * targetScale
+                                                            val finalHeight = imageIntrinsicSize.height * sFill * targetScale
+                                                            
+                                                            val maxOffsetX = ((finalWidth - size.width) / 2f).coerceAtLeast(0f)
+                                                            val maxOffsetY = ((finalHeight - size.height) / 2f).coerceAtLeast(0f)
+                                                            
+                                                            Offset(
+                                                                rawOffset.x.coerceIn(-maxOffsetX, maxOffsetX),
+                                                                rawOffset.y.coerceIn(-maxOffsetY, maxOffsetY)
+                                                            )
+                                                        } else {
+                                                            Offset.Zero
+                                                        }
+
+                                                        val animSpec = tween<Float>(durationMillis = 350)
+                                                        val animSpecOffset = tween<Float>(durationMillis = 350)
+                                                        
+                                                        launch { scaleState.animateTo(targetScale, animSpec) }
+                                                        launch { offsetXState.animateTo(newOffset.x, animSpecOffset) }
+                                                        launch { offsetYState.animateTo(newOffset.y, animSpecOffset) }
+                                                        launch { rotationState.animateTo(0f, animSpec) }
+                                                        
+                                                        viewModel.updateTransformation(
+                                                            actualPageInner,
+                                                            targetScale,
+                                                            newOffset,
+                                                            0f
+                                                        )
+                                                    }
                                                 },
                                                 onTap = {
                                                     if (state.isEditMode) {
@@ -850,6 +907,24 @@ fun PreviewRoute(
 
                                 if (isLiveInner) {
                                     Box(modifier = Modifier.fillMaxSize()) {
+                                        if (!isLockedInner) {
+                                            coil3.compose.AsyncImage(
+                                                model = ImageRequest.Builder(context)
+                                                    .data(itemInner.thumbnailUrl)
+                                                    .build(),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .blur(24.dp)
+                                                    .graphicsLayer {
+                                                        alpha = 0.5f
+                                                        clip = true
+                                                    },
+                                                contentScale = ContentScale.Crop,
+                                                alignment = Alignment.Center
+                                            )
+                                        }
+
                                         if (isErrorInner) {
                                             PreviewErrorState(onRetry = {
                                                 isErrorInner = false
@@ -859,16 +934,16 @@ fun PreviewRoute(
                                             VideoPlayer(
                                                 videoUrl = itemInner.contentUrl,
                                                 isPlaying = pagerState.currentPage == page,
-                                                modifier = imageModifier.graphicsLayer {
-                                                    // Reset transformations for video player as it doesn't support them well yet
-                                                    // and we want it to fill the screen correctly
-                                                    scaleX = 1f
-                                                    scaleY = 1f
-                                                    translationX = 0f
-                                                    translationY = 0f
-                                                    rotationZ = 0f
-                                                },
+                                                modifier = imageModifier,
                                                 onReady = { isLoadedInner = true },
+                                                onVideoSizeChanged = { width, height ->
+                                                    if (width > 0 && height > 0) {
+                                                        imageIntrinsicSize = androidx.compose.ui.geometry.Size(width.toFloat(), height.toFloat())
+                                                        val scaleX = metrics.widthPixels.toFloat() / width
+                                                        val scaleY = metrics.heightPixels.toFloat() / height
+                                                        baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
+                                                    }
+                                                },
                                                 onError = { isErrorInner = true },
                                                 retryCount = retryCountInner
                                             )
@@ -880,7 +955,7 @@ fun PreviewRoute(
                                                         .build(),
                                                     contentDescription = null,
                                                     modifier = Modifier.fillMaxSize(),
-                                                    contentScale = ContentScale.Crop
+                                                    contentScale = ContentScale.Fit
                                                 )
 
                                                 Box(
@@ -927,7 +1002,7 @@ fun PreviewRoute(
                                                     alpha = 0.5f
                                                     clip = true
                                                 },
-                                            contentScale = ContentScale.Crop,
+                                            contentScale = ContentScale.Fit,
                                             alignment = Alignment.Center
                                         )
                                     }
@@ -950,9 +1025,9 @@ fun PreviewRoute(
                                             isLoadedInner = true
                                             val size = state.painter.intrinsicSize
                                             if (size.width > 0 && size.height > 0) {
+                                                imageIntrinsicSize = androidx.compose.ui.geometry.Size(size.width, size.height)
                                                 val scaleX = metrics.widthPixels.toFloat() / size.width
                                                 val scaleY = metrics.heightPixels.toFloat() / size.height
-                                                // isImageWide = scaleY > scaleX
                                                 baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
                                             }
                                         },
@@ -1854,16 +1929,9 @@ private suspend fun PointerInputScope.detectScaleGateGestures(
             if (!canceled) {
                 val isSingleFinger = event.changes.size == 1
                 
-                var zoomChange = event.calculateZoom()
-                var rotationChange = event.calculateRotation()
-                var panChange = event.calculatePan()
-
-                // Single finger only does Pager scrolling (we don't pan the image at all)
-                if (isSingleFinger) {
-                    zoomChange = 1f
-                    rotationChange = 0f
-                    panChange = Offset.Zero
-                }
+                val zoomChange = event.calculateZoom()
+                val rotationChange = event.calculateRotation()
+                val panChange = event.calculatePan()
 
                 if (!pastTouchSlop) {
                     // Start gesture tracking only if multi-touch or already zoomed
