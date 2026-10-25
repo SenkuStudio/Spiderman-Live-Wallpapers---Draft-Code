@@ -327,6 +327,15 @@ private fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                BannerAd(
+                                    adUnitId = BuildConfig.ADMOB_BANNER_HOME_TOP,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 8.dp)
+                                )
+                            }
+
                             if (state.featuredWallpapers.isNotEmpty()) {
                                 item(span = { GridItemSpan(maxLineSpan) }) {
                                     val featuredWallpaper = state.featuredWallpapers.first()

@@ -268,6 +268,16 @@ private fun CategoryWallpapersScreen(
                         WallpaperCardShimmer()
                     }
                 }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    if (state.loadState is LoadState.Appending || state.wallpapers.isNotEmpty()) {
+                        BannerAd(
+                            adUnitId = BuildConfig.ADMOB_BANNER_CATEGORY_WALLPAPERS,
+                            modifier = Modifier.padding(top = 16.dp),
+                            collapsible = "bottom"
+                        )
+                    }
+                }
             }
         }
     }

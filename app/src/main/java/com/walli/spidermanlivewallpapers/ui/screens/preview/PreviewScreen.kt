@@ -231,7 +231,7 @@ fun VideoPlayer(
             PlayerView(it).apply {
                 player = exoPlayer
                 useController = false
-                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
         },
         modifier = modifier
@@ -850,50 +850,12 @@ fun PreviewRoute(
                                         }
                                     )
                                     .graphicsLayer {
-                                        val s = if (isLoadedInner || placeholder != null) (scaleState.value * baseScaleFill) else 1f
-                                        val ox = if (isLoadedInner && !isLockedInner) offsetXState.value else 0f
-                                        val oy = if (isLoadedInner && !isLockedInner) offsetYState.value else 0f
-                                        val r = if (isLoadedInner && !isLockedInner) rotationState.value else 0f
-                                        
-                                        scaleX = s
-                                        scaleY = s
-                                        translationX = ox
-                                        translationY = oy
-                                        rotationZ = r
-                                        
-                                        if (!isLockedInner && (transformationInner.brightness != 1f || transformationInner.contrast != 1f || transformationInner.saturation != 1f || transformationInner.hue != 0f || transformationInner.structure != 0f || transformationInner.details != 0f)) {
-                                            val matrix = androidx.compose.ui.graphics.ColorMatrix()
-                                            if (transformationInner.saturation != 1f) {
-                                                matrix.setToSaturation(transformationInner.saturation)
-                                            }
-                                            if (transformationInner.brightness != 1f || transformationInner.contrast != 1f || transformationInner.structure != 0f || transformationInner.details != 0f) {
-                                                val brightnessOffset = (transformationInner.brightness - 1f) * 255f
-                                                val effectiveContrast = transformationInner.contrast * (1f + (transformationInner.structure * 0.08f) + (transformationInner.details * 0.04f))
-                                                val bcMatrix = androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
-                                                    effectiveContrast, 0f, 0f, 0f, brightnessOffset,
-                                                    0f, effectiveContrast, 0f, 0f, brightnessOffset,
-                                                    0f, 0f, effectiveContrast, 0f, brightnessOffset,
-                                                    0f, 0f, 0f, 1f, 0f
-                                                ))
-                                                matrix.timesAssign(bcMatrix)
-                                            }
-                                            if (transformationInner.hue != 0f) {
-                                                val cosVal = kotlin.math.cos(Math.toRadians(transformationInner.hue.toDouble())).toFloat()
-                                                val sinVal = kotlin.math.sin(Math.toRadians(transformationInner.hue.toDouble())).toFloat()
-                                                val lumR = 0.213f
-                                                val lumG = 0.715f
-                                                val lumB = 0.072f
-                                                val mat = floatArrayOf(
-                                                    lumR + cosVal * (1 - lumR) + sinVal * (-lumR), lumG + cosVal * (-lumG) + sinVal * (-lumG), lumB + cosVal * (-lumB) + sinVal * (1 - lumB), 0f, 0f,
-                                                    lumR + cosVal * (-lumR) + sinVal * (0.143f), lumG + cosVal * (1 - lumG) + sinVal * (0.140f), lumB + cosVal * (-lumB) + sinVal * (-0.283f), 0f, 0f,
-                                                    lumR + cosVal * (-lumR) + sinVal * (-(1 - lumR)), lumG + cosVal * (-lumG) + sinVal * (lumG), lumB + cosVal * (1 - lumB) + sinVal * (lumB), 0f, 0f,
-                                                    0f, 0f, 0f, 1f, 0f
-                                                )
-                                                matrix.timesAssign(androidx.compose.ui.graphics.ColorMatrix(mat))
-                                            }
-                                            colorFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(matrix)
-                                        }
-                                        clip = true
+                                        scaleX = baseScaleFill * scaleState.value
+                                        scaleY = baseScaleFill * scaleState.value
+                                        translationX = offsetXState.value
+                                        translationY = offsetYState.value
+                                        rotationZ = rotationState.value
+                                        clip = false
                                     }
 
                                 val sharedImageModifier = with(sharedTransitionScope) {
@@ -939,9 +901,10 @@ fun PreviewRoute(
                                                 onVideoSizeChanged = { width, height ->
                                                     if (width > 0 && height > 0) {
                                                         imageIntrinsicSize = androidx.compose.ui.geometry.Size(width.toFloat(), height.toFloat())
-                                                        // When using RESIZE_MODE_ZOOM, the video already fills the container.
-                                                        // baseScaleFill should be 1f to avoid double-scaling.
-                                                        baseScaleFill = 1f
+                                                        val scaleX = metrics.widthPixels.toFloat() / width
+                                                        val scaleY = metrics.heightPixels.toFloat() / height
+                                                        // Calculate the scale needed to make a "Fit" video actually "Fill" the screen
+                                                        baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
                                                     }
                                                 },
                                                 onError = { isErrorInner = true },
