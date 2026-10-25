@@ -113,6 +113,10 @@ class AdsViewModel @Inject constructor(
 
     fun createAdRequest(collapsible: String? = null) = adMobManager.createAdRequest(collapsible)
 
+    fun showAppOpenAd() {
+        adMobManager.showAppOpenAdIfAvailable()
+    }
+
     fun logNativeAdImpression(adUnitId: String) {
         analyticsManager.logAdImpression(adUnitId, "native")
     }

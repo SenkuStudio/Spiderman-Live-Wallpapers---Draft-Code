@@ -29,6 +29,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.walli.spidermanlivewallpapers.BuildConfig
+import com.walli.spidermanlivewallpapers.ads.AdsViewModel
+import com.walli.spidermanlivewallpapers.ui.components.NativeAdItem
 import kotlinx.coroutines.launch
 
 data class OnboardingPage(
@@ -40,7 +44,8 @@ data class OnboardingPage(
 
 @Composable
 fun OnboardingScreen(
-    onFinish: () -> Unit
+    onFinish: () -> Unit,
+    viewModel: AdsViewModel = hiltViewModel()
 ) {
     val pages = listOf(
         OnboardingPage(
@@ -95,6 +100,24 @@ fun OnboardingScreen(
                 OnboardingPageContent(pages[pageIndex])
             }
 
+            // Native Ad for Onboarding
+            if (pagerState.currentPage == pages.size - 1) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    NativeAdItem(
+                        adUnitId = BuildConfig.ADMOB_NATIVE_HOME,
+                        key = "onboarding_native",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
             // Bottom controls
             Row(
                 modifier = Modifier
@@ -130,6 +153,7 @@ fun OnboardingScreen(
                                 pagerState.animateScrollToPage(pagerState.currentPage + 1)
                             }
                         } else {
+                            viewModel.showAppOpenAd()
                             onFinish()
                         }
                     },

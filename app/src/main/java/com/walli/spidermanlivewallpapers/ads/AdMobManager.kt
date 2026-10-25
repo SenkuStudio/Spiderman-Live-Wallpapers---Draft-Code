@@ -604,7 +604,7 @@ class AdMobManager @Inject constructor(
         )
     }
 
-    private fun showAppOpenAdIfAvailable() {
+    fun showAppOpenAdIfAvailable() {
         if (isShowingAd || !isAppOpenAdAvailable()) {
             loadAppOpenAd()
             return

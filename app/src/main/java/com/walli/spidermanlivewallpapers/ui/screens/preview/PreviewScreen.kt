@@ -710,7 +710,7 @@ fun PreviewRoute(
                                                 val currentOffset = Offset(offsetXState.value, offsetYState.value)
                                                 val currentRotationValue = rotationState.value
 
-                                                val newScale = (currentScale * zoom).coerceIn(0.8f, 15f)
+                                                val newScale = (currentScale * zoom).coerceIn(0.1f, 15f)
                                                 val scaleChange = newScale / currentScale
                                                 
                                                 val pivot = centroid - Offset(size.width / 2f, size.height / 2f)
@@ -939,9 +939,9 @@ fun PreviewRoute(
                                                 onVideoSizeChanged = { width, height ->
                                                     if (width > 0 && height > 0) {
                                                         imageIntrinsicSize = androidx.compose.ui.geometry.Size(width.toFloat(), height.toFloat())
-                                                        val scaleX = metrics.widthPixels.toFloat() / width
-                                                        val scaleY = metrics.heightPixels.toFloat() / height
-                                                        baseScaleFill = maxOf(scaleX, scaleY) / minOf(scaleX, scaleY)
+                                                        // When using RESIZE_MODE_ZOOM, the video already fills the container.
+                                                        // baseScaleFill should be 1f to avoid double-scaling.
+                                                        baseScaleFill = 1f
                                                     }
                                                 },
                                                 onError = { isErrorInner = true },
